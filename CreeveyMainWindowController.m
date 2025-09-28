@@ -922,6 +922,55 @@ NSComparator ComparatorForSortOrder(short sortOrder) {
 	[self updateExifInfo:nil];
 }
 
+- (void)updateFolderBrowserFont {
+	// Update the folder browser font size
+	CGFloat fontSize = [NSUserDefaults.standardUserDefaults floatForKey:@"folderBrowserFontSize"];
+	if (fontSize <= 0) fontSize = NSFont.systemFontSize;
+
+	// Save the current path
+	NSString *currentPath = dirBrowser.path;
+
+	// Calculate appropriate row height for the font size
+	NSFont *font = [NSFont systemFontOfSize:fontSize];
+	CGFloat rowHeight = ceil([font ascender] - [font descender] + [font leading]) + 4; // Add some padding
+
+	// Update the cell prototype font
+	[dirBrowser.cellPrototype setFont:font];
+
+	// Update font and cell size for all existing cells in visible columns
+	NSInteger lastColumn = dirBrowser.lastColumn;
+	for (NSInteger col = 0; col <= lastColumn; col++) {
+		NSMatrix *matrix = [dirBrowser matrixInColumn:col];
+		if (matrix) {
+			// Get the current cell size and update the height
+			NSSize cellSize = matrix.cellSize;
+			cellSize.height = rowHeight;
+			[matrix setCellSize:cellSize];
+
+			// Update font for all cells in this column
+			for (NSInteger row = 0; row < matrix.numberOfRows; row++) {
+				NSCell *cell = [matrix cellAtRow:row column:0];
+				if (cell) {
+					[cell setFont:font];
+				}
+			}
+			// Force the matrix to redraw and resize
+			[matrix sizeToCells];
+			[matrix setNeedsDisplay:YES];
+		}
+	}
+
+	// Restore the path if needed
+	if (currentPath && ![currentPath isEqualToString:dirBrowser.path]) {
+		[dirBrowser setPath:currentPath];
+	}
+}
+
+- (void)updateThumbnailLabelFont {
+	// Force the image matrix to redraw with new font size
+	[imgMatrix setNeedsDisplay:YES];
+}
+
 #pragma mark splitview delegate
 
 - (void)splitViewDidResizeSubviews:(NSNotification *)notification
