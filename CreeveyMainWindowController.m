@@ -930,38 +930,15 @@ NSComparator ComparatorForSortOrder(short sortOrder) {
 	// Save the current path
 	NSString *currentPath = dirBrowser.path;
 
-	// Calculate appropriate row height for the font size
-	NSFont *font = [NSFont systemFontOfSize:fontSize];
-	CGFloat rowHeight = ceil([font ascender] - [font descender] + [font leading]) + 4; // Add some padding
-
 	// Update the cell prototype font
+	NSFont *font = [NSFont systemFontOfSize:fontSize];
 	[dirBrowser.cellPrototype setFont:font];
 
-	// Update font and cell size for all existing cells in visible columns
-	NSInteger lastColumn = dirBrowser.lastColumn;
-	for (NSInteger col = 0; col <= lastColumn; col++) {
-		NSMatrix *matrix = [dirBrowser matrixInColumn:col];
-		if (matrix) {
-			// Get the current cell size and update the height
-			NSSize cellSize = matrix.cellSize;
-			cellSize.height = rowHeight;
-			[matrix setCellSize:cellSize];
-
-			// Update font for all cells in this column
-			for (NSInteger row = 0; row < matrix.numberOfRows; row++) {
-				NSCell *cell = [matrix cellAtRow:row column:0];
-				if (cell) {
-					[cell setFont:font];
-				}
-			}
-			// Force the matrix to redraw and resize
-			[matrix sizeToCells];
-			[matrix setNeedsDisplay:YES];
-		}
-	}
+	// Reload the browser to apply the new font
+	[dirBrowser loadColumnZero];
 
 	// Restore the path if needed
-	if (currentPath && ![currentPath isEqualToString:dirBrowser.path]) {
+	if (currentPath) {
 		[dirBrowser setPath:currentPath];
 	}
 }
