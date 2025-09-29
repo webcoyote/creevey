@@ -145,7 +145,19 @@ static NSString *defaultPath(void) {
 -(NSString*)path {
 	NSString *s = [_b path];
 	if (!_b.loaded) return s;
-	return [self browserpath2syspath:s];
+	NSString *syspath = [self browserpath2syspath:s];
+
+	// Resolve symbolic links to get the actual target path
+	NSFileManager *fm = [NSFileManager defaultManager];
+	NSString *resolvedPath = [syspath stringByResolvingSymlinksInPath];
+
+	// Check if the resolved path exists and is a directory
+	BOOL isDir = NO;
+	if ([fm fileExistsAtPath:resolvedPath isDirectory:&isDir] && isDir) {
+		return resolvedPath;
+	}
+
+	return syspath;
 }
 
 -(void)setPathAndInitBrowser:(NSString *)s {
@@ -194,9 +206,12 @@ static NSString *defaultPath(void) {
 	NSString *nextColumn = nil;
 	if (currBrowserPathComponents.count > n+1)
 		nextColumn = currBrowserPathComponents[n+1];
-	
+
+	// Resolve symbolic links in the path before enumerating
+	NSString *resolvedPath = [path stringByResolvingSymlinksInPath];
+
 	// ignore NSError here, forin can handle both nil and empty arrays
-	for (NSURL *url in [fm contentsOfDirectoryAtURL:[NSURL fileURLWithPath:path isDirectory:YES] includingPropertiesForKeys:@[NSURLIsDirectoryKey,NSURLIsHiddenKey] options:0 error:NULL]) {
+	for (NSURL *url in [fm contentsOfDirectoryAtURL:[NSURL fileURLWithPath:resolvedPath isDirectory:YES] includingPropertiesForKeys:@[NSURLIsDirectoryKey,NSURLIsHiddenKey] options:0 error:NULL]) {
 		NSString *filename = url.lastPathComponent;
 		if (n==0 && [[fm destinationOfSymbolicLinkAtPath:url.path error:NULL] isEqualToString:@"/"]) {
 			// initialize rootVolumeName here
@@ -211,7 +226,25 @@ static NSString *defaultPath(void) {
 			if (![revealedDirectories containsObject:url]) continue;
 		}
 		NSString *displayName = filename;
-		if (n == 0 || ([url getResourceValue:&val forKey:NSURLIsDirectoryKey error:NULL] && val.boolValue)) {
+		BOOL isDirectory = NO;
+		if ([url getResourceValue:&val forKey:NSURLIsDirectoryKey error:NULL] && val.boolValue) {
+			isDirectory = YES;
+		} else {
+			// Check if it's a symbolic link pointing to a directory
+			NSString *linkTarget = [fm destinationOfSymbolicLinkAtPath:url.path error:NULL];
+			if (linkTarget) {
+				// Make absolute path if relative
+				if (![linkTarget hasPrefix:@"/"]) {
+					linkTarget = [[url.path stringByDeletingLastPathComponent] stringByAppendingPathComponent:linkTarget];
+				}
+				BOOL isDir = NO;
+				if ([fm fileExistsAtPath:linkTarget isDirectory:&isDir] && isDir) {
+					isDirectory = YES;
+				}
+			}
+		}
+
+		if (n == 0 || isDirectory) {
 			[url getResourceValue:&displayName forKey:NSURLLocalizedNameKey error:NULL];
 			[sortArray addObject:@[displayName, filename]];
 		}
